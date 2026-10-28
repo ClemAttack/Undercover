@@ -83,6 +83,8 @@ async function copy(text, label) {
 
 const byId = () => Object.fromEntries(view.players.map((p) => [p.id, p]));
 const isHost = () => view.hostId === view.me.id;
+const MIN_PLAYERS = 3;
+const MAX_PLAYERS = 20;
 const maxInfiltrators = (n) => Math.max(1, Math.floor((n - 1) / 2));
 
 // ---------- rendu ----------
@@ -162,6 +164,20 @@ function counterRow(key, role, label, value, other, max, editable) {
       <output>${value}</output>
       <button class="icon-btn" data-action="setting" data-key="${key}" data-delta="1" aria-label="Plus de ${label}" ${value + other >= max ? "disabled" : ""}>+</button>
     </div>`;
+}
+
+function viewCapacity() {
+  const { capacity } = view.settings;
+  const present = view.players.length;
+  if (!isHost()) return "";
+  return `
+    <div class="counter">
+      <span>Places dans le salon</span>
+      <button class="icon-btn" data-action="setting" data-key="capacity" data-delta="-1" aria-label="Moins de places" ${capacity <= Math.max(MIN_PLAYERS, present) ? "disabled" : ""}>−</button>
+      <output>${capacity}</output>
+      <button class="icon-btn" data-action="setting" data-key="capacity" data-delta="1" aria-label="Plus de places" ${capacity >= MAX_PLAYERS ? "disabled" : ""}>+</button>
+    </div>
+    <p class="hint">${present >= capacity ? "Salon complet : plus personne ne peut entrer." : `Encore ${capacity - present} place${capacity - present > 1 ? "s" : ""} libre${capacity - present > 1 ? "s" : ""}.`}</p>`;
 }
 
 function viewRoles() {
@@ -251,8 +267,9 @@ function viewLobby() {
       </div>
     </section>
     <section class="panel stack" aria-labelledby="players-h">
-      <div class="row between"><h2 id="players-h">Joueurs</h2><span class="muted">${connected} connecté${connected > 1 ? "s" : ""}</span></div>
+      <div class="row between"><h2 id="players-h">Joueurs</h2><span class="muted">${view.players.length} / ${view.settings.capacity} · ${connected} connecté${connected > 1 ? "s" : ""}</span></div>
       <ul class="players">${players}</ul>
+      ${viewCapacity()}
     </section>
     ${viewRoles()}
     ${viewThemes()}
@@ -499,7 +516,7 @@ const clickActions = {
   setting(el) {
     const { uc, mw } = view.settings;
     const next = { uc, mw, [el.dataset.key]: view.settings[el.dataset.key] + Number(el.dataset.delta) };
-    // Les thèmes ne sont pas renvoyés : le serveur garde ceux déjà choisis.
+    // Les thèmes et les places non renvoyés sont conservés par le serveur.
     act("updateSettings", next);
   },
   toggleTheme(el) {

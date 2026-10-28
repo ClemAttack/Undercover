@@ -11,6 +11,7 @@ Jeu d'ambiance en ligne, de 3 à 20 joueurs, chacun sur son téléphone. Un joue
 - En cas d'égalité, on revote entre les ex-aequo ; si l'égalité persiste, le sort tranche.
 - Mr. White éliminé peut deviner le mot des Civils : s'il trouve, il gagne seul. La réponse est validée avec tolérance : accents, majuscules, articles (« le », « l' »…) et pluriels sont ignorés, et les fautes de frappe sont acceptées selon la longueur du mot (aucune sous 5 lettres, 1 dès 5 lettres, 2 dès 9).
 - Les **Civils** gagnent quand tous les infiltrés sont éliminés. Les **infiltrés** gagnent s'il ne reste qu'un seul Civil.
+- Taille du salon : l'hôte règle le nombre de places (3 à 20, 20 par défaut). Une fois le salon plein, plus personne ne peut entrer ; un joueur déjà inscrit qui se reconnecte garde sa place.
 - Thèmes : l'hôte choisit un ou plusieurs thèmes (animaux, nourriture, lieux, métiers…), ou le mode **Mélange** qui pioche dans toutes les paires. Le thème n'est jamais affiché pendant la partie.
 - Points : Civil 2, Mr. White 6, Undercover 10 (pour chaque joueur du camp gagnant). Le classement est conservé tant que le salon existe.
 

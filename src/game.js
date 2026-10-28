@@ -174,7 +174,7 @@ const EMPTY_GAME = {
 
 export function createRoom(code, host) {
   return {
-    code, hostId: host.id, phase: "lobby", settings: { uc: 1, mw: 0, themes: [] }, players: [newPlayer(host)], usedPairs: [], ...EMPTY_GAME,
+    code, hostId: host.id, phase: "lobby", settings: { uc: 1, mw: 0, themes: [], capacity: MAX_PLAYERS }, players: [newPlayer(host)], usedPairs: [], ...EMPTY_GAME,
   };
 }
 
@@ -191,7 +191,7 @@ export function nameError(room, rawName) {
 
 export function addPlayer(room, { id, name, token }) {
   if (!["lobby", "over"].includes(room.phase)) return { error: "La partie a déjà commencé. Attends la fin pour rejoindre." };
-  if (room.players.length >= MAX_PLAYERS) return { error: "Le salon est complet." };
+  if (room.players.length >= room.settings.capacity) return { error: "Le salon est complet." };
   const error = nameError(room, name);
   if (error) return { error };
   return { room: { ...room, players: [...room.players, newPlayer({ id, name: cleanText(name, MAX_NAME_LENGTH), token })] } };
@@ -270,9 +270,17 @@ const clampCount = (value) => Math.min(MAX_PLAYERS, Math.max(0, Math.trunc(Numbe
 const handlers = {
   updateSettings: {
     phases: ["lobby", "over"], hostOnly: true,
-    run(room, _actor, { uc = room.settings.uc, mw = room.settings.mw, themes = room.settings.themes }) {
-      const settings = { uc: clampCount(uc), mw: clampCount(mw), themes: sanitizeThemes(themes) };
+    run(room, _actor, {
+      uc = room.settings.uc, mw = room.settings.mw, themes = room.settings.themes, capacity = room.settings.capacity,
+    }) {
+      const settings = {
+        uc: clampCount(uc), mw: clampCount(mw), themes: sanitizeThemes(themes), capacity: clampCount(capacity),
+      };
       if (settings.uc + settings.mw < 1) return { error: "Il faut au moins un Undercover ou un Mr. White." };
+      if (settings.capacity < MIN_PLAYERS) return { error: `Un salon compte au moins ${MIN_PLAYERS} places.` };
+      if (settings.capacity < room.players.length) {
+        return { error: `Il y a déjà ${room.players.length} joueurs dans le salon. Retire quelqu'un avant de réduire les places.` };
+      }
       return { room: { ...room, settings } };
     },
   },

@@ -147,7 +147,7 @@ test("l'hôte choisit les thèmes et la partie pioche dedans", () => {
   const lobby = lobbyWith(["A", "B", "C", "D"]);
   assert.deepEqual(lobby.settings.themes, []);
   const themed = applyAction(lobby, "p0", { type: "updateSettings", themes: ["metiers"] }).room;
-  assert.deepEqual(themed.settings, { uc: 1, mw: 0, themes: ["metiers"] });
+  assert.deepEqual(themed.settings, { uc: 1, mw: 0, themes: ["metiers"], capacity: 20 });
   assert.match(applyAction(lobby, "p1", { type: "updateSettings", themes: ["metiers"] }).error, /hôte/);
   const started = applyAction(themed, "p0", { type: "start" }, seededRng(4)).room;
   const pair = WORD_THEMES.metiers.find((p) => p.includes(started.civWord));
@@ -157,7 +157,30 @@ test("l'hôte choisit les thèmes et la partie pioche dedans", () => {
 test("changer les rôles conserve les thèmes choisis", () => {
   const themed = applyAction(lobbyWith(["A", "B", "C", "D", "E"]), "p0", { type: "updateSettings", themes: ["nature"] }).room;
   const updated = applyAction(themed, "p0", { type: "updateSettings", uc: 1, mw: 1 }).room;
-  assert.deepEqual(updated.settings, { uc: 1, mw: 1, themes: ["nature"] });
+  assert.deepEqual(updated.settings, { uc: 1, mw: 1, themes: ["nature"], capacity: 20 });
+});
+
+test("un salon a 20 places par défaut et refuse les joueurs une fois plein", () => {
+  const lobby = lobbyWith(["A", "B", "C"]);
+  assert.equal(lobby.settings.capacity, 20);
+  const small = applyAction(lobby, "p0", { type: "updateSettings", capacity: 4 }).room;
+  const full = addPlayer(small, { id: "p3", name: "D", token: "t3" }).room;
+  assert.equal(full.players.length, 4);
+  assert.match(addPlayer(full, { id: "p4", name: "E", token: "t4" }).error, /complet/);
+});
+
+test("l'hôte ne peut pas réduire les places sous le nombre de joueurs présents ni sous 3", () => {
+  const lobby = lobbyWith(["A", "B", "C", "D"]);
+  assert.match(applyAction(lobby, "p0", { type: "updateSettings", capacity: 3 }).error, /déjà 4 joueurs/);
+  assert.match(applyAction(lobbyWith(["A", "B"]), "p0", { type: "updateSettings", capacity: 2 }).error, /au moins 3 places/);
+  assert.match(applyAction(lobby, "p1", { type: "updateSettings", capacity: 10 }).error, /hôte/);
+  assert.equal(applyAction(lobby, "p0", { type: "updateSettings", capacity: 99 }).room.settings.capacity, 20);
+});
+
+test("changer les places conserve les rôles et les thèmes", () => {
+  const set = applyAction(lobbyWith(["A", "B", "C", "D", "E"]), "p0", { type: "updateSettings", mw: 1, themes: ["lieux"] }).room;
+  const resized = applyAction(set, "p0", { type: "updateSettings", capacity: 8 }).room;
+  assert.deepEqual(resized.settings, { uc: 1, mw: 1, themes: ["lieux"], capacity: 8 });
 });
 
 test("revealsWord détecte le mot exact mais pas un mot qui le contient", () => {
