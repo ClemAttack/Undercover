@@ -5,6 +5,7 @@ const SESSION_KEY = "undercover-session";
 const NAME_KEY = "undercover-name";
 const ACK_TIMEOUT_MS = 8000;
 const TOAST_MS = 3500;
+const WORD_REVEAL_MS = 5000;
 
 const app = document.getElementById("app");
 const toastEl = document.getElementById("toast");
@@ -288,8 +289,10 @@ function viewSecret() {
     : `<p class="eyebrow">Ton mot secret</p><p class="word">${escapeHtml(me.word)}</p>`;
   return `
     <button class="secret ${ui.wordShown ? "shown" : ""}" data-action="toggleWord" aria-pressed="${ui.wordShown}">
-      <span class="stack" style="gap:4px">${ui.wordShown ? content : `<span class="eyebrow">Ton mot secret</span><span class="muted">Caché. Vérifie que personne ne regarde ton écran.</span>`}</span>
-      <span class="toggle">${ui.wordShown ? "Cacher" : "Afficher"}</span>
+      <span class="stack" style="gap:4px">${ui.wordShown
+        ? `${content}<span class="small">Se recache tout seul dans quelques secondes.</span>`
+        : `<span class="eyebrow">Ton mot secret</span><span class="muted">Caché. Touche pour le revoir, en vérifiant que personne ne regarde ton écran.</span>`}</span>
+      <span class="toggle">${ui.wordShown ? "Cacher" : "Voir mon mot"}</span>
     </button>
     ${me.inGame && !me.alive ? `<p class="center muted">Tu as été éliminé (${ROLE_LABEL[me.role]}). Tu peux suivre la suite de la partie.</p>` : ""}`;
 }
@@ -492,6 +495,14 @@ async function enterRoom(event, payload) {
   setUrlCode(res.code);
 }
 
+let wordTimer = null;
+function hideWord() {
+  clearTimeout(wordTimer);
+  if (!ui.wordShown) return;
+  ui = { ...ui, wordShown: false };
+  render();
+}
+
 function leaveRoom(reason) {
   writeStore(SESSION_KEY, null);
   setUrlCode("");
@@ -512,7 +523,13 @@ const clickActions = {
   },
   copyCode() { copy(view.code, "Code"); },
   copyLink() { copy(inviteLink(), "Lien"); },
-  toggleWord() { ui = { ...ui, wordShown: !ui.wordShown }; render(); },
+  toggleWord() {
+    if (ui.wordShown) return hideWord();
+    ui = { ...ui, wordShown: true };
+    clearTimeout(wordTimer);
+    wordTimer = setTimeout(hideWord, WORD_REVEAL_MS);
+    render();
+  },
   setting(el) {
     const { uc, mw } = view.settings;
     const next = { uc, mw, [el.dataset.key]: view.settings[el.dataset.key] + Number(el.dataset.delta) };
@@ -580,10 +597,15 @@ socket.on("connect", async () => {
 socket.on("disconnect", () => { offlineEl.hidden = false; });
 
 socket.on("state", (state) => {
-  const newGame = view && view.phase !== "clues" && state.phase === "clues" && state.round === 1;
-  if (newGame) ui = { ...ui, wordShown: false };
+  const phaseChanged = !view || view.phase !== state.phase || view.round !== state.round;
   view = state;
-  render();
+  if (phaseChanged && ui.wordShown) hideWord();
+  else render();
+});
+
+// Le mot se recache dès que le joueur quitte l'écran (autre appli, téléphone verrouillé).
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) hideWord();
 });
 
 socket.on("kicked", ({ reason }) => leaveRoom(reason));
