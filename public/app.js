@@ -117,7 +117,7 @@ function viewRules() {
         <li><strong>Mr. White</strong> ne reçoit aucun mot et doit improviser. Il ne parle jamais en premier.</li>
         <li><strong>À chaque tour</strong>, chacun écrit un indice sur son mot, sans le dire.</li>
         <li><strong>Puis tout le monde vote</strong> pour éliminer un joueur. En cas d'égalité, on revote entre les ex-aequo ; si l'égalité persiste, le sort tranche.</li>
-        <li><strong>Si Mr. White est éliminé</strong>, il peut deviner le mot des Civils. S'il trouve, il gagne seul.</li>
+        <li><strong>Si Mr. White est éliminé</strong>, il peut deviner le mot des Civils. S'il trouve, il gagne seul. Les accents, articles, pluriels et petites fautes de frappe sont acceptés.</li>
         <li><strong>Les Civils gagnent</strong> quand tous les Undercovers et Mr. White sont éliminés.</li>
         <li><strong>Les infiltrés gagnent</strong> s'il ne reste plus qu'un seul Civil en jeu.</li>
         <li><strong>Points</strong> : Civil ${POINTS.civil}, Mr. White ${POINTS.mrwhite}, Undercover ${POINTS.undercover}, pour chaque joueur du camp gagnant.</li>

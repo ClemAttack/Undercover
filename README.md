@@ -9,7 +9,7 @@ Jeu d'ambiance en ligne, de 3 à 20 joueurs, chacun sur son téléphone. Un joue
 - **Mr. White** : il ne reçoit aucun mot et doit bluffer. Il ne parle jamais en premier.
 - À chaque tour, chacun écrit un indice sur son mot (sans le dire), puis tout le monde vote pour éliminer un joueur.
 - En cas d'égalité, on revote entre les ex-aequo ; si l'égalité persiste, le sort tranche.
-- Mr. White éliminé peut deviner le mot des Civils : s'il trouve, il gagne seul.
+- Mr. White éliminé peut deviner le mot des Civils : s'il trouve, il gagne seul. La réponse est validée avec tolérance : accents, majuscules, articles (« le », « l' »…) et pluriels sont ignorés, et les fautes de frappe sont acceptées selon la longueur du mot (aucune sous 5 lettres, 1 dès 5 lettres, 2 dès 9).
 - Les **Civils** gagnent quand tous les infiltrés sont éliminés. Les **infiltrés** gagnent s'il ne reste qu'un seul Civil.
 - Points : Civil 2, Mr. White 6, Undercover 10 (pour chaque joueur du camp gagnant). Le classement est conservé tant que le salon existe.
 
@@ -44,7 +44,7 @@ Railway, Fly.io ou un VPS fonctionnent de la même façon : `npm install` puis `
 ```
 server.js          Serveur HTTP + Socket.IO, gestion des salons et des connexions
 src/game.js        Logique pure du jeu (rôles, tours, votes, victoire, vue filtrée par joueur)
-src/words.js       Paires de mots
+src/words.js       324 paires de mots classées par thème (pas de répétition dans un salon avant épuisement)
 public/            Client web (HTML, CSS, JS sans framework)
 test/              Tests de la logique (node --test)
 ```

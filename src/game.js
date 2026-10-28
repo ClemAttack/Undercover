@@ -19,8 +19,53 @@ export function shuffle(list, rng = Math.random) {
   return copy;
 }
 
+function foldAccents(text) {
+  return String(text).toLowerCase().replace(/œ/g, "oe").replace(/æ/g, "ae")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
 export function normalizeWord(text) {
-  return String(text).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return foldAccents(text).replace(/[^a-z0-9]/g, "");
+}
+
+// ---------- validation tolérante de la proposition de Mr. White ----------
+
+const ARTICLES = new Set(["le", "la", "les", "l", "un", "une", "des", "du", "de", "d"]);
+const MIN_PLURAL_LENGTH = 4;
+
+// Forme comparable : sans accents, sans articles, sans marque du pluriel (-s / -x), sans espaces.
+export function comparableForm(text) {
+  return foldAccents(text).split(/[^a-z0-9]+/)
+    .filter((token) => token && !ARTICLES.has(token))
+    .map((token) => (token.length >= MIN_PLURAL_LENGTH ? token.replace(/[sx]$/, "") : token))
+    .join("");
+}
+
+export function editDistance(a, b) {
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const substitution = previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1);
+      current.push(Math.min(previous[j] + 1, current[j - 1] + 1, substitution));
+    }
+    previous = current;
+  }
+  return previous[b.length];
+}
+
+// Fautes de frappe tolérées selon la longueur du mot à trouver : aucune sous 5 lettres, 1 dès 5, 2 dès 9.
+export function typoTolerance(length) {
+  if (length >= 9) return 2;
+  if (length >= 5) return 1;
+  return 0;
+}
+
+export function isCorrectGuess(guess, word) {
+  const target = comparableForm(word);
+  const attempt = comparableForm(guess);
+  if (!attempt || !target) return false;
+  return editDistance(attempt, target) <= typoTolerance(target.length);
 }
 
 export function cleanText(text, maxLength) {
@@ -53,8 +98,17 @@ const alivePlayers = (room) => room.players.filter((p) => p.alive && p.role);
 
 // ---------- règles ----------
 
-export function dealRoles(players, { uc, mw }, rng = Math.random) {
-  const [civWord, ucWord] = shuffle(WORD_PAIRS[Math.floor(rng() * WORD_PAIRS.length)], rng);
+// Tire une paire pas encore jouée dans ce salon ; quand toutes l'ont été, on repart de zéro.
+export function pickPair(usedPairs, rng = Math.random) {
+  const used = new Set(usedPairs);
+  const fresh = WORD_PAIRS.map((_, i) => i).filter((i) => !used.has(i));
+  const pool = fresh.length ? fresh : WORD_PAIRS.map((_, i) => i);
+  const pairIndex = pool[Math.floor(rng() * pool.length)];
+  return { pairIndex, usedPairs: fresh.length ? [...usedPairs, pairIndex] : [pairIndex] };
+}
+
+export function dealRoles(players, { uc, mw }, rng = Math.random, pairIndex = Math.floor(rng() * WORD_PAIRS.length)) {
+  const [civWord, ucWord] = shuffle(WORD_PAIRS[pairIndex], rng);
   const roles = shuffle([
     ...Array(uc).fill("undercover"),
     ...Array(mw).fill("mrwhite"),
@@ -109,7 +163,9 @@ const EMPTY_GAME = {
 };
 
 export function createRoom(code, host) {
-  return { code, hostId: host.id, phase: "lobby", settings: { uc: 1, mw: 0 }, players: [newPlayer(host)], ...EMPTY_GAME };
+  return {
+    code, hostId: host.id, phase: "lobby", settings: { uc: 1, mw: 0 }, players: [newPlayer(host)], usedPairs: [], ...EMPTY_GAME,
+  };
 }
 
 function newPlayer({ id, name, token }) {
@@ -217,8 +273,9 @@ const handlers = {
       const error = settingsError(present.length, room.settings);
       if (error) return { error };
       const fresh = present.map((p) => ({ ...p, role: null, word: null, alive: true }));
-      const { players, civWord, ucWord } = dealRoles(fresh, room.settings, rng);
-      return { room: beginRound({ ...room, ...EMPTY_GAME, players, civWord, ucWord }, rng) };
+      const { pairIndex, usedPairs } = pickPair(room.usedPairs, rng);
+      const { players, civWord, ucWord } = dealRoles(fresh, room.settings, rng, pairIndex);
+      return { room: beginRound({ ...room, ...EMPTY_GAME, players, civWord, ucWord, usedPairs }, rng) };
     },
   },
   clue: {
@@ -261,7 +318,7 @@ const handlers = {
       if (actor.id !== room.eliminatedId) return { error: "Seul Mr. White peut deviner." };
       const guess = cleanText(text, MAX_GUESS_LENGTH);
       if (!guess) return { error: "Propose un mot." };
-      const correct = normalizeWord(guess) === normalizeWord(room.civWord);
+      const correct = isCorrectGuess(guess, room.civWord);
       const withGuess = { ...room, guess: { text: guess, correct } };
       return { room: correct ? finish(withGuess, "mrwhite-guess", actor.id) : { ...withGuess, phase: "reveal" } };
     },

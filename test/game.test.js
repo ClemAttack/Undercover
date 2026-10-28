@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  addPlayer, applyAction, createRoom, gainsFor, normalizeWord, revealsWord, setConnected, settingsError,
-  speakingOrder, tallyVotes, viewFor, winnerOf, POINTS,
+  addPlayer, applyAction, createRoom, editDistance, gainsFor, isCorrectGuess, normalizeWord, pickPair, revealsWord,
+  setConnected, settingsError, speakingOrder, tallyVotes, viewFor, winnerOf, POINTS,
 } from "../src/game.js";
+import { WORD_PAIRS, WORD_THEMES } from "../src/words.js";
 
 // Générateur pseudo-aléatoire déterministe pour des tests reproductibles.
 function seededRng(seed = 42) {
@@ -38,6 +39,86 @@ function voteAll(room, targetFor, rng = seededRng()) {
 test("normalizeWord ignore accents, casse et ponctuation", () => {
   assert.equal(normalizeWord("  Hélicoptère! "), "helicoptere");
   assert.equal(normalizeWord("Pain au chocolat"), "painauchocolat");
+});
+
+test("normalizeWord transforme les ligatures œ et æ", () => {
+  assert.equal(normalizeWord("Cœur"), "coeur");
+  assert.equal(normalizeWord("Œil"), "oeil");
+});
+
+test("editDistance compte les insertions, suppressions et substitutions", () => {
+  assert.equal(editDistance("chat", "chat"), 0);
+  assert.equal(editDistance("chat", "chats"), 1);
+  assert.equal(editDistance("helicoptere", "helicoptre"), 1);
+  assert.equal(editDistance("pomme", "poire"), 2);
+});
+
+test("isCorrectGuess accepte accents, majuscules, articles et pluriels", () => {
+  assert.equal(isCorrectGuess("helicoptere", "Hélicoptère"), true);
+  assert.equal(isCorrectGuess("PAIN AU CHOCOLAT", "Pain au chocolat"), true);
+  assert.equal(isCorrectGuess("le chat", "Chat"), true);
+  assert.equal(isCorrectGuess("l'aigle", "Aigle"), true);
+  assert.equal(isCorrectGuess("des chevaux", "Cheval"), true);
+  assert.equal(isCorrectGuess("crêpes", "Crêpe"), true);
+  assert.equal(isCorrectGuess("les gâteaux", "Gâteau"), true);
+  assert.equal(isCorrectGuess("coeur", "Cœur"), true);
+  assert.equal(isCorrectGuess("etoile mer", "Étoile de mer"), true);
+});
+
+test("isCorrectGuess tolère les fautes de frappe selon la longueur du mot", () => {
+  assert.equal(isCorrectGuess("helicoptre", "Hélicoptère"), true);
+  assert.equal(isCorrectGuess("helicotre", "Hélicoptère"), true);
+  assert.equal(isCorrectGuess("helictre", "Hélicoptère"), false);
+  assert.equal(isCorrectGuess("pizaa", "Pizza"), true);
+  assert.equal(isCorrectGuess("piza", "Pizza"), true);
+  assert.equal(isCorrectGuess("chta", "Chat"), false);
+  assert.equal(isCorrectGuess("rat", "Rap"), false);
+});
+
+test("isCorrectGuess refuse une proposition vide ou sans rapport", () => {
+  assert.equal(isCorrectGuess("", "Chat"), false);
+  assert.equal(isCorrectGuess("le", "Chat"), false);
+  assert.equal(isCorrectGuess("chien", "Chat"), false);
+});
+
+test("la liste contient au moins 300 paires, sans mot en double", () => {
+  assert.ok(WORD_PAIRS.length >= 300, `seulement ${WORD_PAIRS.length} paires`);
+  const words = WORD_PAIRS.flat().map(normalizeWord);
+  const duplicates = words.filter((w, i) => words.indexOf(w) !== i);
+  assert.deepEqual(duplicates, []);
+  assert.ok(Object.values(WORD_THEMES).every((pairs) => pairs.every((p) => p.length === 2 && p[0] !== p[1])));
+});
+
+test("la tolérance n'accepte jamais le mot Undercover à la place du mot Civil", () => {
+  const clashes = WORD_PAIRS.filter(([a, b]) => isCorrectGuess(a, b) || isCorrectGuess(b, a));
+  assert.deepEqual(clashes, []);
+});
+
+test("chaque mot de la liste est accepté s'il est tapé sans accents ni majuscules", () => {
+  const rejected = WORD_PAIRS.flat().filter((w) => !isCorrectGuess(normalizeWord(w), w) && !isCorrectGuess(w.toLowerCase(), w));
+  assert.deepEqual(rejected, []);
+});
+
+test("pickPair ne repropose pas une paire déjà jouée tant qu'il en reste", () => {
+  const rng = seededRng(3);
+  let used = [];
+  const seen = new Set();
+  for (let i = 0; i < WORD_PAIRS.length; i++) {
+    const pick = pickPair(used, rng);
+    assert.equal(seen.has(pick.pairIndex), false);
+    seen.add(pick.pairIndex);
+    used = pick.usedPairs;
+  }
+  const afterExhaustion = pickPair(used, rng);
+  assert.deepEqual(afterExhaustion.usedPairs, [afterExhaustion.pairIndex]);
+});
+
+test("deux parties d'affilée dans un salon utilisent des paires différentes", () => {
+  const first = startedGame(["A", "B", "C", "D"], { uc: 1, mw: 0 }, 17);
+  const over = { ...first, phase: "over" };
+  const second = applyAction(over, "p0", { type: "start" }, seededRng(17)).room;
+  assert.equal(second.usedPairs.length, 2);
+  assert.notDeepEqual([first.civWord, first.ucWord].sort(), [second.civWord, second.ucWord].sort());
 });
 
 test("revealsWord détecte le mot exact mais pas un mot qui le contient", () => {
