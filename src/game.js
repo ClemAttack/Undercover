@@ -7,6 +7,10 @@ export const MAX_PLAYERS = 20;
 export const MAX_NAME_LENGTH = 20;
 export const MAX_CLUE_LENGTH = 60;
 export const MAX_GUESS_LENGTH = 40;
+export const MAX_CHAT_LENGTH = 200;
+export const CHAT_HISTORY = 80;
+const ROLE_LABEL = { civil: "Civil", undercover: "Undercover", mrwhite: "Mr. White" };
+const GAME_PHASES = ["clues", "vote", "guess", "reveal"];
 
 // ---------- utilitaires ----------
 
@@ -174,7 +178,7 @@ const EMPTY_GAME = {
 
 export function createRoom(code, host) {
   return {
-    code, hostId: host.id, phase: "lobby", settings: { uc: 1, mw: 0, themes: [], capacity: MAX_PLAYERS }, players: [newPlayer(host)], usedPairs: [], ...EMPTY_GAME,
+    code, hostId: host.id, phase: "lobby", settings: { uc: 1, mw: 0, themes: [], capacity: MAX_PLAYERS }, players: [newPlayer(host)], usedPairs: [], chat: [], chatSeq: 0, ...EMPTY_GAME,
   };
 }
 
@@ -228,10 +232,21 @@ function advanceSpeaker(room) {
   return { ...room, speakerIndex, phase: "vote", votes: {}, candidates: alivePlayers(room).map((p) => p.id), tieCount: 0 };
 }
 
+// ---------- chat ----------
+
+function postMessage(room, message) {
+  const chatSeq = room.chatSeq + 1;
+  const chat = [...room.chat, { id: chatSeq, ...message }].slice(-CHAT_HISTORY);
+  return { ...room, chat, chatSeq };
+}
+
+const postSystem = (room, text) => postMessage(room, { playerId: null, name: null, text, system: true });
+
 function eliminate(room, playerId) {
   const players = room.players.map((p) => (p.id === playerId ? { ...p, alive: false } : p));
   const target = players.find((p) => p.id === playerId);
-  return { ...room, players, eliminatedId: playerId, votes: {}, phase: target.role === "mrwhite" ? "guess" : "reveal" };
+  const updated = { ...room, players, eliminatedId: playerId, votes: {}, phase: target.role === "mrwhite" ? "guess" : "reveal" };
+  return postSystem(updated, `${target.name} est éliminé : ${ROLE_LABEL[target.role]}.`);
 }
 
 function resolveVote(room, rng) {
@@ -293,7 +308,8 @@ const handlers = {
       const fresh = present.map((p) => ({ ...p, role: null, word: null, alive: true }));
       const { pairIndex, usedPairs } = pickPair(room.usedPairs, rng, room.settings.themes);
       const { players, civWord, ucWord } = dealRoles(fresh, room.settings, rng, pairIndex);
-      return { room: beginRound({ ...room, ...EMPTY_GAME, players, civWord, ucWord, usedPairs }, rng) };
+      const started = beginRound({ ...room, ...EMPTY_GAME, players, civWord, ucWord, usedPairs }, rng);
+      return { room: postSystem(started,"Nouvelle partie ! Les éliminés ne peuvent plus écrire jusqu'à la fin.") };
     },
   },
   clue: {
@@ -337,7 +353,8 @@ const handlers = {
       const guess = cleanText(text, MAX_GUESS_LENGTH);
       if (!guess) return { error: "Propose un mot." };
       const correct = isCorrectGuess(guess, room.civWord);
-      const withGuess = { ...room, guess: { text: guess, correct } };
+      const verdict = correct ? "trouvé !" : "raté.";
+      const withGuess = postSystem({ ...room, guess: { text: guess, correct } }, `Mr. White propose « ${guess} » : ${verdict}`);
       return { room: correct ? finish(withGuess, "mrwhite-guess", actor.id) : { ...withGuess, phase: "reveal" } };
     },
   },
@@ -346,6 +363,17 @@ const handlers = {
     phases: ["reveal", "guess"], hostOnly: true,
     run(room, _actor, _action, rng) {
       return { room: nextStep(room, rng) };
+    },
+  },
+  chat: {
+    phases: ["lobby", "over", ...GAME_PHASES],
+    run(room, actor, { text }) {
+      const message = cleanText(text, MAX_CHAT_LENGTH);
+      if (!message) return { error: "Écris un message." };
+      const inGame = GAME_PHASES.includes(room.phase) && actor.role;
+      if (inGame && !actor.alive) return { error: "Tu es éliminé : tu pourras reparler à la fin de la partie." };
+      if (inGame && revealsWord(message, actor.word)) return { error: "Tu ne peux pas écrire ton mot !" };
+      return { room: postMessage(room, { playerId: actor.id, name: actor.name, text: message, system: false }) };
     },
   },
   backToLobby: {
@@ -410,6 +438,7 @@ export function viewFor(room, viewerId) {
     order: room.order,
     speakerId: room.phase === "clues" ? room.order[room.speakerIndex] : null,
     clues: room.clues,
+    chat: room.chat,
     candidates: room.candidates,
     tie: room.phase === "vote" && room.tieCount > 0,
     votedIds: Object.keys(room.votes),

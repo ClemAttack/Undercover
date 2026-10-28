@@ -12,8 +12,13 @@ const toastEl = document.getElementById("toast");
 const offlineEl = document.getElementById("offline");
 const socket = io();
 
+const chatEl = document.getElementById("chat");
+const GAME_PHASES = ["clues", "vote", "guess", "reveal"];
+const CHAT_MAX_LENGTH = 200;
+const CHAT_STICK_PX = 60;
+
 let view = null; // état envoyé par le serveur
-let ui = { wordShown: false, busy: false };
+let ui = { wordShown: false, busy: false, chatOpen: false, lastSeenChat: 0 };
 
 // ---------- stockage local (confort, facultatif) ----------
 
@@ -468,6 +473,104 @@ function viewOver() {
     <button class="btn ghost wide" data-action="leave">Quitter le salon</button>`;
 }
 
+// ---------- chat ----------
+
+const latestChatId = () => (view && view.chat.length ? view.chat[view.chat.length - 1].id : 0);
+const chatMuted = () => GAME_PHASES.includes(view.phase) && view.me.inGame && !view.me.alive;
+
+function viewChatMessage(m) {
+  if (m.system) return `<p class="msg system">${escapeHtml(m.text)}</p>`;
+  const mine = m.playerId === view.me.id;
+  return `
+    <div class="msg ${mine ? "mine" : ""}">
+      ${mine ? "" : `<span class="who">${escapeHtml(m.name)}</span>`}
+      <span class="bubble">${escapeHtml(m.text)}</span>
+    </div>`;
+}
+
+function viewChatPanel() {
+  const messages = view.chat.length
+    ? view.chat.map(viewChatMessage).join("")
+    : `<p class="chat-empty">Aucun message pour l'instant. Expliquez vos votes, défendez-vous, accusez !</p>`;
+  const footer = chatMuted()
+    ? `<p class="chat-muted">Tu es éliminé : tu pourras reparler à la fin de la partie.</p>`
+    : `<form class="chat-form" data-chat-form>
+         <input type="text" id="chat-input" maxlength="${CHAT_MAX_LENGTH}" autocomplete="off" placeholder="Ton message" aria-label="Message">
+         <button class="btn" type="submit">Envoyer</button>
+       </form>`;
+  return `
+    <div class="chat-panel" role="dialog" aria-label="Chat du salon">
+      <div class="chat-head"><h2>Chat du salon</h2><button class="small-btn" data-chat="close">Fermer</button></div>
+      <div class="chat-list" id="chat-list">${messages}</div>
+      ${footer}
+    </div>`;
+}
+
+function viewChatButton() {
+  const unread = view.chat.filter((m) => m.id > ui.lastSeenChat && m.playerId !== view.me.id).length;
+  const label = unread ? `Ouvrir le chat, ${unread} message${unread > 1 ? "s" : ""} non lu${unread > 1 ? "s" : ""}` : "Ouvrir le chat";
+  return `<button class="chat-fab ${unread ? "has-unread" : ""}" data-chat="open" aria-label="${label}">
+    Chat ${unread ? `<span class="badge">${unread > 9 ? "9+" : unread}</span>` : ""}</button>`;
+}
+
+// Rendu séparé du jeu : on garde la saisie, le focus et la position de lecture.
+function renderChat() {
+  if (!view) {
+    chatEl.innerHTML = "";
+    return;
+  }
+  const list = document.getElementById("chat-list");
+  const stuckToBottom = !list || list.scrollHeight - list.scrollTop - list.clientHeight < CHAT_STICK_PX;
+  const previousTop = list ? list.scrollTop : 0;
+  const draft = document.getElementById("chat-input")?.value || "";
+  const hadFocus = document.activeElement?.id === "chat-input";
+
+  if (ui.chatOpen) ui = { ...ui, lastSeenChat: latestChatId() };
+  chatEl.innerHTML = ui.chatOpen ? viewChatPanel() : viewChatButton();
+  if (!ui.chatOpen) return;
+
+  const newList = document.getElementById("chat-list");
+  newList.scrollTop = stuckToBottom ? newList.scrollHeight : previousTop;
+  const input = document.getElementById("chat-input");
+  if (input) {
+    input.value = draft;
+    if (hadFocus) input.focus();
+  }
+}
+
+function openChat() {
+  ui = { ...ui, chatOpen: true };
+  renderChat();
+  document.getElementById("chat-input")?.focus();
+}
+
+function closeChat() {
+  ui = { ...ui, chatOpen: false };
+  renderChat();
+  chatEl.querySelector(".chat-fab")?.focus();
+}
+
+chatEl.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-chat]");
+  if (!el) return;
+  if (el.dataset.chat === "open") openChat();
+  else closeChat();
+});
+
+chatEl.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = document.getElementById("chat-input");
+  if (!input || !input.value.trim()) return;
+  const res = await act("chat", { text: input.value });
+  // Le panneau a pu être redessiné pendant l'envoi : on vide le champ actuel, pas l'ancien.
+  const current = document.getElementById("chat-input");
+  if (res.ok && current) current.value = "";
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && ui.chatOpen) closeChat();
+});
+
 // ---------- actions ----------
 
 function readName() {
@@ -507,8 +610,9 @@ function leaveRoom(reason) {
   writeStore(SESSION_KEY, null);
   setUrlCode("");
   view = null;
-  ui = { ...ui, wordShown: false };
+  ui = { ...ui, wordShown: false, chatOpen: false, lastSeenChat: 0 };
   render();
+  renderChat();
   if (reason) toast(reason);
 }
 
@@ -598,9 +702,13 @@ socket.on("disconnect", () => { offlineEl.hidden = false; });
 
 socket.on("state", (state) => {
   const phaseChanged = !view || view.phase !== state.phase || view.round !== state.round;
+  const joining = !view;
   view = state;
+  // En arrivant dans un salon, l'historique déjà présent ne compte pas comme non lu.
+  if (joining) ui = { ...ui, lastSeenChat: latestChatId() };
   if (phaseChanged && ui.wordShown) hideWord();
   else render();
+  renderChat();
 });
 
 // Le mot se recache dès que le joueur quitte l'écran (autre appli, téléphone verrouillé).

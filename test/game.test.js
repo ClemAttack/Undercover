@@ -183,6 +183,51 @@ test("changer les places conserve les rôles et les thèmes", () => {
   assert.deepEqual(resized.settings, { uc: 1, mw: 1, themes: ["lieux"], capacity: 8 });
 });
 
+test("le chat accepte les messages dans le salon d'attente", () => {
+  const room = applyAction(lobbyWith(["A", "B", "C"]), "p1", { type: "chat", text: "  Salut   tout le monde " }).room;
+  assert.equal(room.chat.length, 1);
+  assert.deepEqual(room.chat[0], { id: 1, playerId: "p1", name: "B", text: "Salut tout le monde", system: false });
+  assert.match(applyAction(room, "p1", { type: "chat", text: "   " }).error, /Écris/);
+  assert.equal(applyAction(room, "p1", { type: "chat", text: "x".repeat(500) }).room.chat[1].text.length, 200);
+});
+
+test("le chat ne garde que les 80 derniers messages", () => {
+  const room = Array.from({ length: 90 }, (_, i) => i)
+    .reduce((r, i) => applyAction(r, "p0", { type: "chat", text: `m${i}` }).room, lobbyWith(["A", "B", "C"]));
+  assert.equal(room.chat.length, 80);
+  assert.equal(room.chat[0].text, "m10");
+  assert.equal(room.chat[79].id, 90);
+});
+
+test("pendant la partie, on ne peut pas écrire son mot dans le chat", () => {
+  const room = startedGame(["A", "B", "C", "D"], { uc: 1, mw: 0 }, 3);
+  const civil = room.players.find((p) => p.role === "civil");
+  assert.match(applyAction(room, civil.id, { type: "chat", text: `c'est ${civil.word} évidemment` }).error, /ton mot/);
+  assert.ok(applyAction(room, civil.id, { type: "chat", text: "je suis innocent" }).room);
+});
+
+test("un joueur éliminé ne peut plus écrire avant la fin de la partie", () => {
+  const room = playCluesRound(startedGame(["A", "B", "C", "D", "E", "F"], { uc: 1, mw: 0 }, 11));
+  const civilians = room.players.filter((p) => p.role === "civil");
+  const [target, scapegoat] = civilians;
+  const voted = voteAll(room, (p) => (p.id === target.id ? scapegoat.id : target.id));
+  assert.equal(voted.eliminatedId, target.id);
+  assert.match(applyAction(voted, target.id, { type: "chat", text: "le mot c'est..." }).error, /éliminé/);
+  assert.ok(applyAction(voted, scapegoat.id, { type: "chat", text: "dommage" }).room);
+});
+
+test("le chat signale le début de partie, les éliminations et la proposition de Mr. White", () => {
+  const room = playCluesRound(startedGame(["A", "B", "C", "D", "E"], { uc: 1, mw: 1 }, 9));
+  assert.match(room.chat.at(-1).text, /Nouvelle partie/);
+  const mw = room.players.find((p) => p.role === "mrwhite");
+  const scapegoat = room.players.find((p) => p.id !== mw.id);
+  const voted = voteAll(room, (p) => (p.id === mw.id ? scapegoat.id : mw.id));
+  assert.equal(voted.chat.at(-1).system, true);
+  assert.match(voted.chat.at(-1).text, new RegExp(`${mw.name} est éliminé : Mr. White`));
+  const guessed = applyAction(voted, mw.id, { type: "guess", text: "zzz" }).room;
+  assert.match(guessed.chat.at(-1).text, /Mr. White propose « zzz » : raté/);
+});
+
 test("revealsWord détecte le mot exact mais pas un mot qui le contient", () => {
   assert.equal(revealsWord("c'est un chat", "Chat"), true);
   assert.equal(revealsWord("un château fort", "Chat"), false);
