@@ -185,6 +185,42 @@ function viewRoles() {
     </section>`;
 }
 
+function themeSummary() {
+  const { themes } = view.settings;
+  if (themes.length === 0) {
+    const total = view.themeCatalog.reduce((sum, t) => sum + t.count, 0);
+    return `Mélange de tous les thèmes · ${total} paires`;
+  }
+  const chosen = view.themeCatalog.filter((t) => themes.includes(t.key));
+  const total = chosen.reduce((sum, t) => sum + t.count, 0);
+  return `${chosen.map((t) => t.label).join(", ")} · ${total} paires`;
+}
+
+function viewThemes() {
+  const { themes } = view.settings;
+  if (!isHost()) {
+    return `
+      <section class="panel stack" aria-labelledby="themes-h">
+        <h2 id="themes-h">Thèmes</h2>
+        <p class="muted">${escapeHtml(themeSummary())}</p>
+      </section>`;
+  }
+  const chips = view.themeCatalog.map((t) => {
+    const on = themes.includes(t.key);
+    return `<button class="chip ${on ? "on" : ""}" data-action="toggleTheme" data-key="${t.key}" aria-pressed="${on}">
+      ${escapeHtml(t.label)} <span class="count">${t.count}</span></button>`;
+  }).join("");
+  return `
+    <section class="panel stack" aria-labelledby="themes-h">
+      <h2 id="themes-h">Thèmes</h2>
+      <div class="chips">
+        <button class="chip mix ${themes.length === 0 ? "on" : ""}" data-action="mixThemes" aria-pressed="${themes.length === 0}">Mélange (tous les thèmes)</button>
+        ${chips}
+      </div>
+      <p class="hint">${escapeHtml(themeSummary())}. Le thème n'est jamais affiché pendant la partie.</p>
+    </section>`;
+}
+
 function playerBadges(p) {
   const badges = [];
   if (p.id === view.me.id) badges.push(`<span class="tag">toi</span>`);
@@ -219,6 +255,7 @@ function viewLobby() {
       <ul class="players">${players}</ul>
     </section>
     ${viewRoles()}
+    ${viewThemes()}
     ${isHost()
       ? `<button class="btn wide" data-action="start" ${canStart ? "" : "disabled"}>Lancer la partie</button>`
       : `<p class="center muted">En attente que l'hôte lance la partie…</p>`}
@@ -404,6 +441,7 @@ function viewOver() {
     </section>
     ${isHost()
       ? `${viewRoles()}
+         ${viewThemes()}
          <button class="btn wide" data-action="start">Rejouer</button>
          <button class="btn ghost wide" data-action="backToLobby">Retour au salon</button>`
       : `<p class="center muted">En attente que l'hôte relance une partie…</p>`}
@@ -461,8 +499,15 @@ const clickActions = {
   setting(el) {
     const { uc, mw } = view.settings;
     const next = { uc, mw, [el.dataset.key]: view.settings[el.dataset.key] + Number(el.dataset.delta) };
+    // Les thèmes ne sont pas renvoyés : le serveur garde ceux déjà choisis.
     act("updateSettings", next);
   },
+  toggleTheme(el) {
+    const { themes } = view.settings;
+    const key = el.dataset.key;
+    act("updateSettings", { themes: themes.includes(key) ? themes.filter((t) => t !== key) : [...themes, key] });
+  },
+  mixThemes() { act("updateSettings", { themes: [] }); },
   start() { ui = { ...ui, wordShown: false }; act("start"); },
   kick(el) { act("kick", { playerId: el.dataset.id }); },
   skipSpeaker() { act("skipSpeaker"); },

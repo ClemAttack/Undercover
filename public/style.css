@@ -87,6 +87,17 @@ input[type="text"] {
 .code-input { font-family: var(--display); letter-spacing: 0.3em; text-transform: uppercase; text-align: center; font-size: 1.3rem; }
 .inline-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 
+/* Thèmes */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--night); color: var(--muted); font-weight: 600; font-size: 0.9rem;
+}
+.chip:hover { border-color: var(--muted); color: var(--ink); }
+.chip.on { background: var(--amber); border-color: var(--amber); color: var(--amber-ink); }
+.chip.mix { font-weight: 800; }
+.chip .count { font-size: 0.75rem; opacity: 0.7; font-variant-numeric: tabular-nums; }
+
 /* Code du salon */
 .room-code { font-family: var(--display); font-size: clamp(2.2rem, 12vw, 3.2rem); letter-spacing: 0.18em; color: var(--amber); line-height: 1; }
 

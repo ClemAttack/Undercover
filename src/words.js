@@ -108,4 +108,27 @@ export const WORD_THEMES = {
   ],
 };
 
+export const THEME_LABELS = {
+  animaux: "Animaux",
+  nourriture: "Nourriture",
+  boissons: "Boissons",
+  lieux: "Lieux",
+  objets: "Objets",
+  vetements: "Vêtements",
+  metiers: "Métiers",
+  transports: "Transports",
+  sports_loisirs: "Sports et loisirs",
+  culture_fetes: "Culture et fêtes",
+  nature: "Nature",
+  fantastique: "Fantastique",
+  corps_sante: "Corps et santé",
+};
+
 export const WORD_PAIRS = Object.values(WORD_THEMES).flat();
+
+// Thème de chaque paire, à la même position que dans WORD_PAIRS.
+export const PAIR_THEMES = Object.entries(WORD_THEMES).flatMap(([theme, pairs]) => pairs.map(() => theme));
+
+export const THEME_CATALOG = Object.entries(WORD_THEMES).map(([key, pairs]) => ({
+  key, label: THEME_LABELS[key], count: pairs.length,
+}));

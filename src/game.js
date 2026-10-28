@@ -1,5 +1,5 @@
 // Logique pure du jeu : chaque fonction reçoit un salon et renvoie un nouveau salon, sans effet de bord.
-import { WORD_PAIRS } from "./words.js";
+import { PAIR_THEMES, THEME_CATALOG, WORD_PAIRS, WORD_THEMES } from "./words.js";
 
 export const POINTS = { civil: 2, undercover: 10, mrwhite: 6 };
 export const MIN_PLAYERS = 3;
@@ -98,13 +98,23 @@ const alivePlayers = (room) => room.players.filter((p) => p.alive && p.role);
 
 // ---------- règles ----------
 
-// Tire une paire pas encore jouée dans ce salon ; quand toutes l'ont été, on repart de zéro.
-export function pickPair(usedPairs, rng = Math.random) {
+// Liste vide = mode « Mélange » : toutes les paires, tous thèmes confondus.
+export function sanitizeThemes(themes) {
+  if (!Array.isArray(themes)) return [];
+  const chosen = [...new Set(themes.filter((t) => typeof t === "string" && Object.hasOwn(WORD_THEMES, t)))];
+  return chosen.length === THEME_CATALOG.length ? [] : chosen;
+}
+
+// Tire une paire pas encore jouée dans ce salon parmi les thèmes choisis ;
+// quand toutes celles de ces thèmes ont été jouées, on les remet en jeu.
+export function pickPair(usedPairs, rng = Math.random, themes = []) {
+  const eligible = WORD_PAIRS.map((_, i) => i).filter((i) => themes.length === 0 || themes.includes(PAIR_THEMES[i]));
   const used = new Set(usedPairs);
-  const fresh = WORD_PAIRS.map((_, i) => i).filter((i) => !used.has(i));
-  const pool = fresh.length ? fresh : WORD_PAIRS.map((_, i) => i);
+  const fresh = eligible.filter((i) => !used.has(i));
+  const pool = fresh.length ? fresh : eligible;
   const pairIndex = pool[Math.floor(rng() * pool.length)];
-  return { pairIndex, usedPairs: fresh.length ? [...usedPairs, pairIndex] : [pairIndex] };
+  const kept = fresh.length ? usedPairs : usedPairs.filter((i) => !eligible.includes(i));
+  return { pairIndex, usedPairs: [...kept, pairIndex] };
 }
 
 export function dealRoles(players, { uc, mw }, rng = Math.random, pairIndex = Math.floor(rng() * WORD_PAIRS.length)) {
@@ -164,7 +174,7 @@ const EMPTY_GAME = {
 
 export function createRoom(code, host) {
   return {
-    code, hostId: host.id, phase: "lobby", settings: { uc: 1, mw: 0 }, players: [newPlayer(host)], usedPairs: [], ...EMPTY_GAME,
+    code, hostId: host.id, phase: "lobby", settings: { uc: 1, mw: 0, themes: [] }, players: [newPlayer(host)], usedPairs: [], ...EMPTY_GAME,
   };
 }
 
@@ -260,8 +270,8 @@ const clampCount = (value) => Math.min(MAX_PLAYERS, Math.max(0, Math.trunc(Numbe
 const handlers = {
   updateSettings: {
     phases: ["lobby", "over"], hostOnly: true,
-    run(room, _actor, { uc, mw }) {
-      const settings = { uc: clampCount(uc), mw: clampCount(mw) };
+    run(room, _actor, { uc = room.settings.uc, mw = room.settings.mw, themes = room.settings.themes }) {
+      const settings = { uc: clampCount(uc), mw: clampCount(mw), themes: sanitizeThemes(themes) };
       if (settings.uc + settings.mw < 1) return { error: "Il faut au moins un Undercover ou un Mr. White." };
       return { room: { ...room, settings } };
     },
@@ -273,7 +283,7 @@ const handlers = {
       const error = settingsError(present.length, room.settings);
       if (error) return { error };
       const fresh = present.map((p) => ({ ...p, role: null, word: null, alive: true }));
-      const { pairIndex, usedPairs } = pickPair(room.usedPairs, rng);
+      const { pairIndex, usedPairs } = pickPair(room.usedPairs, rng, room.settings.themes);
       const { players, civWord, ucWord } = dealRoles(fresh, room.settings, rng, pairIndex);
       return { room: beginRound({ ...room, ...EMPTY_GAME, players, civWord, ucWord, usedPairs }, rng) };
     },
@@ -368,6 +378,7 @@ export function viewFor(room, viewerId) {
     phase: room.phase,
     hostId: room.hostId,
     settings: room.settings,
+    themeCatalog: THEME_CATALOG,
     round: room.round,
     me: {
       id: me.id,

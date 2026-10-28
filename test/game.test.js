@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   addPlayer, applyAction, createRoom, editDistance, gainsFor, isCorrectGuess, normalizeWord, pickPair, revealsWord,
-  setConnected, settingsError, speakingOrder, tallyVotes, viewFor, winnerOf, POINTS,
+  sanitizeThemes, setConnected, settingsError, speakingOrder, tallyVotes, viewFor, winnerOf, POINTS,
 } from "../src/game.js";
-import { WORD_PAIRS, WORD_THEMES } from "../src/words.js";
+import { PAIR_THEMES, THEME_CATALOG, WORD_PAIRS, WORD_THEMES } from "../src/words.js";
 
 // Générateur pseudo-aléatoire déterministe pour des tests reproductibles.
 function seededRng(seed = 42) {
@@ -119,6 +119,45 @@ test("deux parties d'affilée dans un salon utilisent des paires différentes", 
   const second = applyAction(over, "p0", { type: "start" }, seededRng(17)).room;
   assert.equal(second.usedPairs.length, 2);
   assert.notDeepEqual([first.civWord, first.ucWord].sort(), [second.civWord, second.ucWord].sort());
+});
+
+test("sanitizeThemes ignore les thèmes inconnus et ramène « tous » au mode Mélange", () => {
+  assert.deepEqual(sanitizeThemes(["animaux", "inconnu", "animaux", 42]), ["animaux"]);
+  assert.deepEqual(sanitizeThemes("animaux"), []);
+  assert.deepEqual(sanitizeThemes(THEME_CATALOG.map((t) => t.key)), []);
+});
+
+test("pickPair ne tire que dans les thèmes choisis", () => {
+  const rng = seededRng(8);
+  for (let i = 0; i < 50; i++) {
+    const { pairIndex } = pickPair([], rng, ["boissons", "nature"]);
+    assert.ok(["boissons", "nature"].includes(PAIR_THEMES[pairIndex]));
+  }
+});
+
+test("pickPair remet en jeu un thème épuisé sans oublier les paires jouées ailleurs", () => {
+  const animalIndexes = PAIR_THEMES.map((t, i) => (t === "animaux" ? i : -1)).filter((i) => i >= 0);
+  const drinkIndex = PAIR_THEMES.indexOf("boissons");
+  const { pairIndex, usedPairs } = pickPair([drinkIndex, ...animalIndexes], seededRng(), ["animaux"]);
+  assert.equal(PAIR_THEMES[pairIndex], "animaux");
+  assert.deepEqual(usedPairs, [drinkIndex, pairIndex]);
+});
+
+test("l'hôte choisit les thèmes et la partie pioche dedans", () => {
+  const lobby = lobbyWith(["A", "B", "C", "D"]);
+  assert.deepEqual(lobby.settings.themes, []);
+  const themed = applyAction(lobby, "p0", { type: "updateSettings", themes: ["metiers"] }).room;
+  assert.deepEqual(themed.settings, { uc: 1, mw: 0, themes: ["metiers"] });
+  assert.match(applyAction(lobby, "p1", { type: "updateSettings", themes: ["metiers"] }).error, /hôte/);
+  const started = applyAction(themed, "p0", { type: "start" }, seededRng(4)).room;
+  const pair = WORD_THEMES.metiers.find((p) => p.includes(started.civWord));
+  assert.ok(pair && pair.includes(started.ucWord));
+});
+
+test("changer les rôles conserve les thèmes choisis", () => {
+  const themed = applyAction(lobbyWith(["A", "B", "C", "D", "E"]), "p0", { type: "updateSettings", themes: ["nature"] }).room;
+  const updated = applyAction(themed, "p0", { type: "updateSettings", uc: 1, mw: 1 }).room;
+  assert.deepEqual(updated.settings, { uc: 1, mw: 1, themes: ["nature"] });
 });
 
 test("revealsWord détecte le mot exact mais pas un mot qui le contient", () => {
