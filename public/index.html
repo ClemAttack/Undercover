@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Undercover</title>
+  <meta name="description" content="Jeu Undercover en ligne : créez un salon privé, partagez le code, démasquez les infiltrés.">
+  <meta name="theme-color" content="#13172a">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&family=Figtree:wght@400;600;800&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="offline" class="banner" hidden>Connexion perdue, reconnexion en cours…</div>
+  <main id="app" aria-live="polite"></main>
+  <div id="toast" class="toast" role="alert" hidden></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

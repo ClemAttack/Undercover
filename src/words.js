@@ -1,0 +1,21 @@
+// Paires de mots proches : l'un va aux Civils, l'autre aux Undercovers (tiré au hasard).
+export const WORD_PAIRS = [
+  ["Chat", "Chien"], ["Café", "Thé"], ["Plage", "Piscine"], ["Pizza", "Burger"], ["Avion", "Hélicoptère"],
+  ["Guitare", "Violon"], ["Football", "Rugby"], ["Soleil", "Lune"], ["Vin", "Bière"], ["Paris", "Londres"],
+  ["Ski", "Snowboard"], ["Pomme", "Poire"], ["Cinéma", "Théâtre"], ["Médecin", "Infirmier"], ["Lion", "Tigre"],
+  ["Train", "Métro"], ["Croissant", "Pain au chocolat"], ["Mer", "Lac"], ["Harry Potter", "Le Seigneur des Anneaux"],
+  ["Montagne", "Colline"], ["Dentifrice", "Savon"], ["Stylo", "Crayon"], ["Noël", "Anniversaire"],
+  ["Fourchette", "Cuillère"], ["Pluie", "Neige"], ["Vampire", "Zombie"], ["Policier", "Pompier"],
+  ["Chocolat", "Caramel"], ["Lit", "Canapé"], ["Banane", "Mangue"], ["Ordinateur", "Tablette"],
+  ["Requin", "Dauphin"], ["Fromage", "Yaourt"], ["Château", "Palais"], ["Moustique", "Mouche"],
+  ["Parapluie", "Imperméable"], ["Basket", "Volley"], ["Sushi", "Kebab"], ["Boulanger", "Pâtissier"],
+  ["Vélo", "Trottinette"], ["Montre", "Bracelet"], ["Glace", "Sorbet"], ["Pirate", "Viking"],
+  ["Bougie", "Lampe"], ["Miroir", "Fenêtre"], ["Hôpital", "Pharmacie"], ["Chaussette", "Gant"],
+  ["Tennis", "Badminton"], ["Abeille", "Guêpe"], ["Crêpe", "Gaufre"], ["Désert", "Savane"],
+  ["Clown", "Magicien"], ["Princesse", "Reine"], ["Coussin", "Oreiller"], ["Ketchup", "Moutarde"],
+  ["Volcan", "Geyser"], ["Peintre", "Photographe"], ["Robot", "Cyborg"], ["Fantôme", "Sorcière"],
+  ["Licorne", "Pégase"], ["Mariage", "Baptême"], ["Valise", "Sac à dos"], ["Carotte", "Navet"],
+  ["Ascenseur", "Escalator"], ["Bibliothèque", "Librairie"], ["Tortue", "Escargot"], ["Jean", "Pantalon"],
+  ["Hamac", "Transat"], ["Igloo", "Tente"], ["Karaoké", "Concert"], ["Marteau", "Tournevis"],
+  ["Pingouin", "Manchot"], ["Raquette", "Batte"], ["Sirène", "Dragon"], ["Tracteur", "Camion"],
+];
